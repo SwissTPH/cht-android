@@ -1,9 +1,14 @@
 package org.medicmobile.webapp.mobile;
 
+import static android.os.Environment.DIRECTORY_DOCUMENTS;
+import static android.os.Environment.getExternalStorageDirectory;
+import static android.os.Environment.getExternalStoragePublicDirectory;
+
 import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.app.ActivityManager.MemoryInfo;
 import android.app.DatePickerDialog;
+import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
@@ -11,14 +16,19 @@ import android.net.NetworkInfo;
 import android.net.TrafficStats;
 import android.net.Uri;
 import android.os.Process;
+import android.webkit.JavascriptInterface;
 import android.widget.DatePicker;
 import android.os.Build;
 import android.os.Environment;
 import android.os.StatFs;
+import android.widget.Toast;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
@@ -28,9 +38,12 @@ import java.nio.charset.StandardCharsets;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -86,6 +99,56 @@ public class MedicAndroidJavascript {
 		}
 	}
 
+	@JavascriptInterface
+	public void toastResult(String result){
+		Toast.makeText(parent, result, Toast.LENGTH_LONG).show();
+	}
+
+	@JavascriptInterface
+	public void saveDocs(String docs) throws IOException{
+		System.out.println(docs);
+		File file = null;
+		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");
+
+		if (android.os.Build.VERSION.SDK_INT >= 8) {
+			file = new File(getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS)+"/cht_data/", "allDocs_"+ LocalDateTime.now()
+				.truncatedTo(ChronoUnit.SECONDS)
+				.toString()
+				.replace("-","")
+				.replace(":","")+ ".json");
+		}
+		else {
+			file = new File(getExternalStorageDirectory()+"/cht_data/", "allDocs_"+LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
+				.toString()
+				.replace("-","")
+				.replace(":","")+ ".json");
+		}
+		if(!Objects.requireNonNull(file.getParentFile()).exists()){
+			file.getParentFile().mkdirs();
+		}
+		if(!file.exists()){
+			try {
+				file.createNewFile();
+			}catch (Exception e){
+				e.printStackTrace();
+			}
+		}
+		try {
+			FileWriter fileWriter = new FileWriter(file);
+			BufferedWriter bufferedWriter = new BufferedWriter(fileWriter);
+			bufferedWriter.write(docs);
+			bufferedWriter.close();
+			toastResult("Download Completed");
+		} catch (FileNotFoundException e){
+			toastResult("Could not find the file");
+			e.printStackTrace();
+		} catch (IOException e) {
+			toastResult("Could not write the file to storage");
+			e.printStackTrace();
+		}
+
+
+	}
 	@android.webkit.JavascriptInterface
 	public void playAlert() {
 		try {

@@ -30,6 +30,7 @@ import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
@@ -39,7 +40,7 @@ import java.util.Optional;
 
 @SuppressWarnings({ "PMD.GodClass", "PMD.TooManyMethods" })
 public class EmbeddedBrowserActivity extends Activity {
-
+	Button button;
 	private WebView container;
 	private SettingsStore settings;
 	private String appUrl;
@@ -65,7 +66,6 @@ public class EmbeddedBrowserActivity extends Activity {
 	@SuppressLint("ClickableViewAccessibility")
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-
 		trace(this, "Starting webview...");
 
 		this.filePickerHandler = new FilePickerHandler(this);
@@ -84,6 +84,18 @@ public class EmbeddedBrowserActivity extends Activity {
 		this.requestWindowFeature(Window.FEATURE_NO_TITLE);
 		setContentView(R.layout.main);
 
+		button = findViewById(R.id.button);
+		button.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				//medicmobile_android.saveDocs(result)
+				//
+				String script = "window.PouchDB('medic-user-afgoye_hfo')"+
+					".allDocs({include_docs: true, attachments: true})" +
+					".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
+				container.evaluateJavascript(script, null);
+			}
+		});
 		// Add an alarming red border if using configurable (i.e. dev)
 		// app with a medic production server.
 		if (settings.allowsConfiguration() && appUrl != null && appUrl.contains("app.medicmobile.org")) {
