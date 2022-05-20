@@ -16,6 +16,7 @@ import android.net.NetworkInfo;
 import android.net.TrafficStats;
 import android.net.Uri;
 import android.os.Process;
+import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.widget.DatePicker;
 import android.os.Build;
@@ -30,6 +31,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.Reader;
@@ -53,6 +55,7 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.YEAR;
 import static java.util.Locale.UK;
 import static org.medicmobile.webapp.mobile.MedicLog.log;
+import static org.medicmobile.webapp.mobile.MedicLog.warn;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
@@ -103,25 +106,22 @@ public class MedicAndroidJavascript {
 	public void toastResult(String result){
 		Toast.makeText(parent, result, Toast.LENGTH_LONG).show();
 	}
-
 	@JavascriptInterface
 	public void saveDocs(String docs) throws IOException{
-		System.out.println(docs);
 		File file = null;
-		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");
-
+		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");;
 		if (android.os.Build.VERSION.SDK_INT >= 8) {
 			file = new File(getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS)+"/cht_data/", "allDocs_"+ LocalDateTime.now()
 				.truncatedTo(ChronoUnit.SECONDS)
 				.toString()
 				.replace("-","")
-				.replace(":","")+ ".json");
+				.replace(":","")+ ".txt");
 		}
 		else {
 			file = new File(getExternalStorageDirectory()+"/cht_data/", "allDocs_"+LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
 				.toString()
 				.replace("-","")
-				.replace(":","")+ ".json");
+				.replace(":","")+ ".txt");
 		}
 		if(!Objects.requireNonNull(file.getParentFile()).exists()){
 			file.getParentFile().mkdirs();

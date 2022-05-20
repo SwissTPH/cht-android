@@ -2,6 +2,7 @@ package org.medicmobile.webapp.mobile;
 
 import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
+import static android.Manifest.permission.GET_ACCOUNTS;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static org.medicmobile.webapp.mobile.BuildConfig.DEBUG;
 import static org.medicmobile.webapp.mobile.MedicLog.error;
@@ -11,7 +12,10 @@ import static org.medicmobile.webapp.mobile.MedicLog.warn;
 import static org.medicmobile.webapp.mobile.SimpleJsonClient2.redactUrl;
 import static org.medicmobile.webapp.mobile.Utils.createUseragentFrom;
 import static org.medicmobile.webapp.mobile.Utils.isValidNavigationUrl;
-
+import android.content.SharedPreferences;
+import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.accounts.AuthenticatorDescription;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -19,12 +23,18 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Bundle;
+
+import android.os.ParcelFileDescriptor;
+import android.provider.DocumentsContract;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.webkit.ConsoleMessage;
+import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -32,15 +42,32 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.widget.Button;
 import android.widget.Toast;
-
 import androidx.core.content.ContextCompat;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.File;
+
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Scanner;
 
 @SuppressWarnings({ "PMD.GodClass", "PMD.TooManyMethods" })
 public class EmbeddedBrowserActivity extends Activity {
 	Button button;
+	Button import_button;
 	private WebView container;
 	private SettingsStore settings;
 	private String appUrl;
@@ -88,12 +115,42 @@ public class EmbeddedBrowserActivity extends Activity {
 		button.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
-				//medicmobile_android.saveDocs(result)
-				//
-				String script = "window.PouchDB('medic-user-afgoye_hfo')"+
-					".allDocs({include_docs: true, attachments: true})" +
-					".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
-				container.evaluateJavascript(script, null);
+
+				String cookies = CookieManager.getInstance().getCookie(appUrl);
+				String encodedUserCtxCookie = Arrays.stream(cookies.split(";"))
+					.map(field -> field.split("="))
+					.filter(pair -> "userCtx".equals(pair[0].trim()))
+					.map(pair -> pair[1].trim())
+					.findAny()
+					.get();
+				try {
+					String userCtxData = URLDecoder.decode(encodedUserCtxCookie, "utf-8")
+						.replace("{", "")
+						.replace("}", "");
+					String userName = Arrays.stream(userCtxData.split(","))
+						.map(field -> field.split(":"))
+						.filter(pair -> "\"name\"".equals(pair[0].trim()))
+						.map(pair -> pair[1].replace("\"", "").trim())
+						.findAny()
+						.get();
+					container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
+					String script = "window.PouchDB('medic-user-"+ userName+"')" +
+						".allDocs({include_docs: true, attachments: true})" +
+						".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
+					container.evaluateJavascript(script, null);
+				} catch (UnsupportedEncodingException e) {
+					toast("Encoding not supported");
+				}
+			}
+		});
+		import_button = findViewById(R.id.button_import);
+		import_button.setOnClickListener(new View.OnClickListener() {
+			@Override
+			public void onClick(View view) {
+				Intent i2 = new Intent(Intent.ACTION_GET_CONTENT);
+				i2.setType("*/*");
+				startActivityForResult(i2, 105);
+
 			}
 		});
 		// Add an alarming red border if using configurable (i.e. dev)
@@ -187,6 +244,7 @@ public class EmbeddedBrowserActivity extends Activity {
 				backButtonHandler);
 	}
 
+	@SuppressLint("Recycle")
 	@Override
 	protected void onActivityResult(int requestCd, int resultCode, Intent intent) {
 		Optional<RequestCode> requestCodeOpt = RequestCode.valueOf(requestCd);
@@ -202,6 +260,67 @@ public class EmbeddedBrowserActivity extends Activity {
 			trace(this, "onActivityResult() :: requestCode=%s, resultCode=%s", requestCode.name(), resultCode);
 
 			switch (requestCode) {
+				case PICK_FILE_REQUEST:
+					if (resultCode == RESULT_OK && intent != null) {
+						//URI data_uri = new URI(intent.getData().toString());
+						Uri data_uri = intent.getData();
+						//File file = new File(String.valueOf(data_uri));
+						String content = null;
+						//Scanner myReader = new Scanner(file);
+						//while (myReader.hasNextLine()) {
+							//content.append(myReader.nextLine());
+
+						//}
+						//myReader.close();
+						try {
+							InputStream in = getContentResolver().openInputStream(data_uri);
+							BufferedReader r = new BufferedReader(new InputStreamReader(in));
+							StringBuilder total = new StringBuilder();
+							for (String line; (line = r.readLine()) != null; ) {
+								total.append(line);
+								//evaluateJavascript("console.log('reading line"+line+"')");
+							}
+
+							content = (total.toString());
+							Log.d("Content of the file ", String.valueOf(data_uri).replace("content://",""));
+
+						}catch (Exception e) {
+							warn(e, "Could not open the specified file");
+							toast("Could not open the specified file");
+						}
+						String cookies = CookieManager.getInstance().getCookie(appUrl);
+						String encodedUserCtxCookie = Arrays.stream(cookies.split(";"))
+							.map(field -> field.split("="))
+							.filter(pair -> "userCtx".equals(pair[0].trim()))
+							.map(pair -> pair[1].trim())
+							.findAny()
+							.get();
+						try {
+							String userCtxData = URLDecoder.decode(encodedUserCtxCookie, "utf-8")
+								.replace("{", "")
+								.replace("}", "");
+							String userName = Arrays.stream(userCtxData.split(","))
+								.map(field -> field.split(":"))
+								.filter(pair -> "\"name\"".equals(pair[0].trim()))
+								.map(pair -> pair[1].replace("\"", "").trim())
+								.findAny()
+								.get();
+							JSONObject obj = new JSONObject(content);
+							//container.evaluateJavascript("console.log('+"+data_uri+"')", null);
+							//container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
+							String import_script =
+								";"+
+								"window.PouchDB('medic-user-"+ userName+"')" +
+								".put('"+String.valueOf(data_uri).replace("://","") +
+								".then(result => toastResult(result));"+
+								"')";
+							container.evaluateJavascript(import_script, null);
+						} catch (UnsupportedEncodingException e) {
+							container.evaluateJavascript("toastResult(Encoding not supported)",null);
+						}
+						Toast.makeText(getApplicationContext(), content,Toast.LENGTH_LONG).show();
+					}
+
 				case FILE_PICKER_ACTIVITY:
 					this.filePickerHandler.processResult(resultCode, intent);
 					return;
@@ -239,7 +358,6 @@ public class EmbeddedBrowserActivity extends Activity {
 	ChtExternalAppHandler getChtExternalAppHandler() {
 		return this.chtExternalAppHandler;
 	}
-
 //> PUBLIC API
 	public void evaluateJavascript(final String js) {
 		evaluateJavascript(js, true);
@@ -431,8 +549,8 @@ public class EmbeddedBrowserActivity extends Activity {
 		ACCESS_STORAGE_PERMISSION(101),
 		CHT_EXTERNAL_APP_ACTIVITY(102),
 		GRAB_MRDT_PHOTO_ACTIVITY(103),
-		FILE_PICKER_ACTIVITY(104);
-
+		FILE_PICKER_ACTIVITY(104),
+		PICK_FILE_REQUEST(105);
 		private final int requestCode;
 
 		RequestCode(int requestCode) {
