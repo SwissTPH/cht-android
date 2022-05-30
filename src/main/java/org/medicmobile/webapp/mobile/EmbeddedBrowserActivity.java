@@ -2,7 +2,6 @@ package org.medicmobile.webapp.mobile;
 
 import static android.Manifest.permission.ACCESS_COARSE_LOCATION;
 import static android.Manifest.permission.ACCESS_FINE_LOCATION;
-import static android.Manifest.permission.GET_ACCOUNTS;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static org.medicmobile.webapp.mobile.BuildConfig.DEBUG;
 import static org.medicmobile.webapp.mobile.MedicLog.error;
@@ -12,10 +11,7 @@ import static org.medicmobile.webapp.mobile.MedicLog.warn;
 import static org.medicmobile.webapp.mobile.SimpleJsonClient2.redactUrl;
 import static org.medicmobile.webapp.mobile.Utils.createUseragentFrom;
 import static org.medicmobile.webapp.mobile.Utils.isValidNavigationUrl;
-import android.content.SharedPreferences;
-import android.accounts.Account;
-import android.accounts.AccountManager;
-import android.accounts.AuthenticatorDescription;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.ActivityManager;
@@ -23,13 +19,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Bundle;
 
-import android.os.ParcelFileDescriptor;
-import android.provider.DocumentsContract;
+import android.os.StrictMode;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -47,27 +42,25 @@ import androidx.core.content.ContextCompat;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
-import java.io.File;
 
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.MalformedURLException;
-import java.net.URI;
+import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
-import java.util.Scanner;
 
 @SuppressWarnings({ "PMD.GodClass", "PMD.TooManyMethods" })
 public class EmbeddedBrowserActivity extends Activity {
-	Button button;
-	Button import_button;
+	Button download_button;
+	Button upload_button;
+	public String role = "Placeholder";
 	private WebView container;
 	private SettingsStore settings;
 	private String appUrl;
@@ -87,9 +80,10 @@ public class EmbeddedBrowserActivity extends Activity {
 			}
 		}
 	};
+	private List<String> userData;
 
 
-//> ACTIVITY LIFECYCLE METHODS
+	//> ACTIVITY LIFECYCLE METHODS
 	@SuppressLint("ClickableViewAccessibility")
 	@Override public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -107,44 +101,28 @@ public class EmbeddedBrowserActivity extends Activity {
 
 		this.settings = SettingsStore.in(this);
 		this.appUrl = settings.getAppUrl();
-
 		this.requestWindowFeature(Window.FEATURE_NO_TITLE);
 		setContentView(R.layout.main);
-
-		button = findViewById(R.id.button);
-		button.setOnClickListener(new View.OnClickListener() {
+		download_button = findViewById(R.id.download_button);
+		download_button.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
+				String userName = getUserData().get(0);
+				Log.d("Cache", userName);
 
-				String cookies = CookieManager.getInstance().getCookie(appUrl);
-				String encodedUserCtxCookie = Arrays.stream(cookies.split(";"))
-					.map(field -> field.split("="))
-					.filter(pair -> "userCtx".equals(pair[0].trim()))
-					.map(pair -> pair[1].trim())
-					.findAny()
-					.get();
-				try {
-					String userCtxData = URLDecoder.decode(encodedUserCtxCookie, "utf-8")
-						.replace("{", "")
-						.replace("}", "");
-					String userName = Arrays.stream(userCtxData.split(","))
-						.map(field -> field.split(":"))
-						.filter(pair -> "\"name\"".equals(pair[0].trim()))
-						.map(pair -> pair[1].replace("\"", "").trim())
-						.findAny()
-						.get();
-					container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
-					String script = "window.PouchDB('medic-user-"+ userName+"')" +
-						".allDocs({include_docs: true, attachments: true})" +
-						".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
-					container.evaluateJavascript(script, null);
-				} catch (UnsupportedEncodingException e) {
-					toast("Encoding not supported");
-				}
+				container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
+				String script = "window.PouchDB('medic-user-"+ userName+"')" +
+					".allDocs({include_docs: true, attachments: true, binary:true})" +
+					".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
+				container.evaluateJavascript(script, null);
 			}
 		});
-		import_button = findViewById(R.id.button_import);
-		import_button.setOnClickListener(new View.OnClickListener() {
+		Boolean isUpdateRole = role != null || role.contains("admin");
+		upload_button = findViewById(R.id.upload_button);
+		Log.d("Disable with role", role);
+		upload_button.setEnabled(isUpdateRole);
+
+		upload_button.setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View view) {
 				Intent i2 = new Intent(Intent.ACTION_GET_CONTENT);
@@ -205,6 +183,7 @@ public class EmbeddedBrowserActivity extends Activity {
 		trace(this, "onStart() :: Checking Crosswalk migration ...");
 		XWalkMigration xWalkMigration = new XWalkMigration(this.getApplicationContext());
 		if (xWalkMigration.hasToMigrate()) {
+
 			log(this, "onStart() :: Running Crosswalk migration ...");
 			isMigrationRunning = true;
 			Intent intent = new Intent(this, UpgradingActivity.class)
@@ -212,6 +191,9 @@ public class EmbeddedBrowserActivity extends Activity {
 				.putExtra("backPressedMessage", getString(R.string.waitMigration));
 			startActivity(intent);
 			xWalkMigration.run();
+			role = getUserData().get(0);
+			Log.d("Role is ", role);
+
 		} else {
 			trace(this, "onStart() :: Crosswalk installation not found - skipping migration");
 		}
@@ -265,7 +247,7 @@ public class EmbeddedBrowserActivity extends Activity {
 						//URI data_uri = new URI(intent.getData().toString());
 						Uri data_uri = intent.getData();
 						//File file = new File(String.valueOf(data_uri));
-						String content = null;
+						String content;
 						//Scanner myReader = new Scanner(file);
 						//while (myReader.hasNextLine()) {
 							//content.append(myReader.nextLine());
@@ -280,45 +262,65 @@ public class EmbeddedBrowserActivity extends Activity {
 								total.append(line);
 								//evaluateJavascript("console.log('reading line"+line+"')");
 							}
-
-							content = (total.toString());
-							Log.d("Content of the file ", String.valueOf(data_uri).replace("content://",""));
-
+							if (android.os.Build.VERSION.SDK_INT > 9) {
+								StrictMode.ThreadPolicy policy =
+									new StrictMode.ThreadPolicy.Builder().permitAll().build();
+								StrictMode.setThreadPolicy(policy);
+							}
+							//content=total.toString().replaceAll("\"","\\\\\"");
+							content = ("docs="+total.toString()).trim();
+							content = content.replace("\n", "");
+							Log.d("Content of the file ", content);
+// Post downloaded data to the REST API / Main server
+							Log.d("APP uRL is ", appUrl);
+							URL url = new URL(appUrl+"/medic/_bulk_docs/");
+							Log.d("URL using", url.toString());
+							String userPassword = "medic" + ":" + "password";
+							String encoding = Base64.encodeToString(userPassword.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+							HttpURLConnection con = (HttpURLConnection) url.openConnection();
+							con.setRequestMethod("POST");
+							con.setRequestProperty("Authorization", "Basic " + encoding);
+							con.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+							con.setRequestProperty("Accept", "application/json");
+							con.setDoOutput(true);
+							con.setDoInput(true);
+							con.connect();
+							byte[] input = content.getBytes(StandardCharsets.UTF_8);
+							try(OutputStream os = con.getOutputStream()) {
+								Log.d("input is currently ", content);
+								os.write(input, 0, input.length);
+								//os.flush();
+								Log.d("input done ", "yes");
+							}catch (Exception e){
+								e.printStackTrace();
+							}
+							try(BufferedReader br = new BufferedReader(
+								new InputStreamReader(con.getErrorStream(), StandardCharsets.UTF_8))) {
+								StringBuilder response = new StringBuilder();
+								String responseLine = null;
+								while ((responseLine = br.readLine()) != null) {
+									response.append(responseLine.trim());
+								}
+								Log.d("response of the call",response.toString());
+								con.disconnect();
+								Toast.makeText(getApplicationContext(), content,Toast.LENGTH_LONG).show();
+							}catch (Exception e){
+								Log.d("Second catch ", "got caught");
+								e.printStackTrace();
+							}
 						}catch (Exception e) {
 							warn(e, "Could not open the specified file");
 							toast("Could not open the specified file");
 						}
-						String cookies = CookieManager.getInstance().getCookie(appUrl);
-						String encodedUserCtxCookie = Arrays.stream(cookies.split(";"))
-							.map(field -> field.split("="))
-							.filter(pair -> "userCtx".equals(pair[0].trim()))
-							.map(pair -> pair[1].trim())
-							.findAny()
-							.get();
-						try {
-							String userCtxData = URLDecoder.decode(encodedUserCtxCookie, "utf-8")
-								.replace("{", "")
-								.replace("}", "");
-							String userName = Arrays.stream(userCtxData.split(","))
-								.map(field -> field.split(":"))
-								.filter(pair -> "\"name\"".equals(pair[0].trim()))
-								.map(pair -> pair[1].replace("\"", "").trim())
-								.findAny()
-								.get();
-							JSONObject obj = new JSONObject(content);
-							//container.evaluateJavascript("console.log('+"+data_uri+"')", null);
-							//container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
-							String import_script =
-								";"+
-								"window.PouchDB('medic-user-"+ userName+"')" +
-								".put('"+String.valueOf(data_uri).replace("://","") +
-								".then(result => toastResult(result));"+
-								"')";
-							container.evaluateJavascript(import_script, null);
-						} catch (UnsupportedEncodingException e) {
-							container.evaluateJavascript("toastResult(Encoding not supported)",null);
-						}
-						Toast.makeText(getApplicationContext(), content,Toast.LENGTH_LONG).show();
+						//container.evaluateJavascript("console.log('+"+data_uri+"')", null);
+						//container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
+						//String import_script =
+						//	""+
+						//"window.PouchDB('medic-user-"+ userName+"')" +
+						//	".put('"+content +"')"+
+						//	".then(result => toastResult(result));"+
+						//	"')";
+						//container.evaluateJavascript(import_script, null);
 					}
 
 				case FILE_PICKER_ACTIVITY:
@@ -414,6 +416,42 @@ public class EmbeddedBrowserActivity extends Activity {
 //> PRIVATE HELPERS
 	private void locationRequestResolved() {
 		evaluateJavascript("window.CHTCore.AndroidApi.v1.locationPermissionRequestResolved();");
+	}
+
+	private List<String> getUserData(){
+		List<String> userData = new ArrayList<>();
+		try {
+			String cookies = CookieManager.getInstance().getCookie(appUrl);
+			if ( cookies != null & !cookies.isEmpty()){
+				String encodedUserCtxCookie = Arrays.stream(cookies.split(";"))
+					.map(field -> field.split("="))
+					.filter(pair -> "userCtx".equals(pair[0].trim()))
+					.map(pair -> pair[1].trim())
+					.findAny()
+					.get();
+				String userCtxData = URLDecoder.decode(encodedUserCtxCookie, "utf-8")
+					.replace("{", "")
+					.replace("}", "");
+				String userName = Arrays.stream(userCtxData.split(","))
+					.map(field -> field.split(":"))
+					.filter(pair -> "\"name\"".equals(pair[0].trim()))
+					.map(pair -> pair[1].replace("\"", "").trim())
+					.findAny()
+					.get();
+				userData.add(userName);
+				role = (Arrays.stream(userCtxData.split(","))
+					.map(field -> field.split(":"))
+					.filter(pair -> "\"roles\"".equals(pair[0].trim()))
+					.map(pair -> pair[1].replace("\"", "").trim())
+					.findAny()
+					.get());
+				userData.add(role);
+				return userData;
+			}
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 	private void processLocationPermissionResult(int resultCode) {
