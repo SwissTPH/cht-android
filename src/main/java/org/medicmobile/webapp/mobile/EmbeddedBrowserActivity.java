@@ -39,6 +39,7 @@ import android.widget.Button;
 import android.widget.Toast;
 import androidx.core.content.ContextCompat;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -267,13 +268,12 @@ public class EmbeddedBrowserActivity extends Activity {
 									new StrictMode.ThreadPolicy.Builder().permitAll().build();
 								StrictMode.setThreadPolicy(policy);
 							}
-							//content=total.toString().replaceAll("\"","\\\\\"");
-							content = ("docs="+total.toString()).trim();
-							content = content.replace("\n", "");
+							content =total.toString().replaceAll("\"total_rows\".*\"rows\":","\"docs\":");
 							Log.d("Content of the file ", content);
 // Post downloaded data to the REST API / Main server
+							//maybe use all_docs but iterate through the docs OR use jAVASCRIPT with the db
 							Log.d("APP uRL is ", appUrl);
-							URL url = new URL(appUrl+"/medic/_bulk_docs/");
+							URL url = new URL(appUrl+"/medic/_bulk_docs?include_docs=true&attachments=true");
 							Log.d("URL using", url.toString());
 							String userPassword = "medic" + ":" + "password";
 							String encoding = Base64.encodeToString(userPassword.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
@@ -294,19 +294,39 @@ public class EmbeddedBrowserActivity extends Activity {
 							}catch (Exception e){
 								e.printStackTrace();
 							}
-							try(BufferedReader br = new BufferedReader(
-								new InputStreamReader(con.getErrorStream(), StandardCharsets.UTF_8))) {
-								StringBuilder response = new StringBuilder();
-								String responseLine = null;
-								while ((responseLine = br.readLine()) != null) {
-									response.append(responseLine.trim());
+							Log.d("resp", con.getResponseMessage()+" ; "+con.getResponseCode());
+							String responseMessage = con.getResponseMessage();
+							Integer responseCode = con.getResponseCode();
+							if (con.getResponseCode() == 200 || con.getResponseCode() == 201) {
+								try (BufferedReader br = new BufferedReader(
+									new InputStreamReader(con.getInputStream(), StandardCharsets.UTF_8))) {
+									StringBuilder response = new StringBuilder();
+									String responseLine = null;
+									while ((responseLine = br.readLine()) != null) {
+										response.append(responseLine.trim());
+									}
+									con.disconnect();
+									Toast.makeText(getApplicationContext(), responseMessage, Toast.LENGTH_LONG).show();
+								} catch (Exception e) {
+									Log.d("Input message loop", "There was no Input stream");
+									e.printStackTrace();
 								}
-								Log.d("response of the call",response.toString());
-								con.disconnect();
-								Toast.makeText(getApplicationContext(), content,Toast.LENGTH_LONG).show();
-							}catch (Exception e){
-								Log.d("Second catch ", "got caught");
-								e.printStackTrace();
+							}else {
+								try (BufferedReader br = new BufferedReader(
+									new InputStreamReader(con.getErrorStream(), StandardCharsets.UTF_8))) {
+									StringBuilder response = new StringBuilder();
+									String responseLine = null;
+									while ((responseLine = br.readLine()) != null) {
+										response.append(responseLine.trim());
+									}
+									Log.d("response of the call", response.toString());
+									JSONObject response_obj = new JSONObject(response.toString());
+									con.disconnect();
+									Toast.makeText(getApplicationContext(), response_obj.getString("error"), Toast.LENGTH_LONG).show();
+								} catch (Exception e) {
+									Log.d("Error loop ", "There was no Error");
+									e.printStackTrace();
+								}
 							}
 						}catch (Exception e) {
 							warn(e, "Could not open the specified file");
