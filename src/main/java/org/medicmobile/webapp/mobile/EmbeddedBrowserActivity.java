@@ -268,12 +268,22 @@ public class EmbeddedBrowserActivity extends Activity {
 									new StrictMode.ThreadPolicy.Builder().permitAll().build();
 								StrictMode.setThreadPolicy(policy);
 							}
+							//content =total.toString().replaceAll("\"total_rows\".*\"rows\":","\"docs\":");
 							content =total.toString().replaceAll("\"total_rows\".*\"rows\":","\"docs\":");
+							//content = content.replaceAll("\"id\"", "\"_id\"");
+							//content = content.replaceAll("\"rev\"", "\"_rev\"");
+							//content = content.replaceAll("\"deleted\"", "\"_deleted\"");
+							//content = content.replaceAll("\"attachments\"", "\"_attachments\"");
+							//content = content.replaceAll("\"doc\":\\{(\".*)\\}", "$1");
+
+							//content = content.substring(0, content.length() - 1);
+							//content = content + ",\"new_edits\": false}";
 							Log.d("Content of the file ", content);
+							Log.d("Tail content file", content.substring(content.length() - 30));
 // Post downloaded data to the REST API / Main server
 							//maybe use all_docs but iterate through the docs OR use jAVASCRIPT with the db
 							Log.d("APP uRL is ", appUrl);
-							URL url = new URL(appUrl+"/medic/_bulk_docs?include_docs=true&attachments=true");
+							/*URL url = new URL(appUrl+"/medic/_bulk_docs?include_docs=true&attachments=true");
 							Log.d("URL using", url.toString());
 							String userPassword = "medic" + ":" + "password";
 							String encoding = Base64.encodeToString(userPassword.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
@@ -293,8 +303,26 @@ public class EmbeddedBrowserActivity extends Activity {
 								Log.d("input done ", "yes");
 							}catch (Exception e){
 								e.printStackTrace();
-							}
-							Log.d("resp", con.getResponseMessage()+" ; "+con.getResponseCode());
+							}*/
+							//String content_js =
+							String script = "var localDB=new PouchDB('temp_db');" +
+								"localDB.bulkDocs({docs:"+content+", include_docs:true})" +
+								".then(result => console.log(JSON.stringify(result)));"+
+								"var remoteDB = new PouchDB('"+appUrl+"/medic"+"');"+
+								"localDB.replicate.to(remoteDB).on('complete', function (result){" +
+								"console.log(JSON.stringify(result));"+
+								"medicmobile_android.toastResult('Replication completed');}).on('error', function(err){" +
+								"medicmobile_android.toastResult('Error with replication');"+
+								"console.log(JSON.stringify(err));});"+
+								"var localDB2 = window.PouchDB('medic-user-medic');"+
+								"localDB.replicate.to(localDB2).on('complete', function (result){" +
+								"console.log(JSON.stringify(result));"+
+								"medicmobile_android.toastResult('Replication completed');}).on('error', function(err){" +
+								"medicmobile_android.toastResult('Error with replication');"+
+								"console.log(JSON.stringify(err));});";
+							Log.d("script to exe", script);
+							container.evaluateJavascript(script, null);
+							/*Log.d("resp", con.getResponseMessage()+" ; "+con.getResponseCode());
 							String responseMessage = con.getResponseMessage();
 							Integer responseCode = con.getResponseCode();
 							if (con.getResponseCode() == 200 || con.getResponseCode() == 201) {
@@ -306,6 +334,8 @@ public class EmbeddedBrowserActivity extends Activity {
 										response.append(responseLine.trim());
 									}
 									con.disconnect();
+									Log.d("Response", response.toString());
+									JSONObject array = new JSONObject(response.toString());
 									Toast.makeText(getApplicationContext(), responseMessage, Toast.LENGTH_LONG).show();
 								} catch (Exception e) {
 									Log.d("Input message loop", "There was no Input stream");
@@ -319,15 +349,15 @@ public class EmbeddedBrowserActivity extends Activity {
 									while ((responseLine = br.readLine()) != null) {
 										response.append(responseLine.trim());
 									}
-									Log.d("response of the call", response.toString());
 									JSONObject response_obj = new JSONObject(response.toString());
-									con.disconnect();
-									Toast.makeText(getApplicationContext(), response_obj.getString("error"), Toast.LENGTH_LONG).show();
+									Log.d("response of the call", response.toString() + ": "+ response_obj.getString("reason"));
+									Toast.makeText(getApplicationContext(), response_obj.getString("error") + "with reason : "+ response_obj.getString("reason"), Toast.LENGTH_LONG).show();
 								} catch (Exception e) {
-									Log.d("Error loop ", "There was no Error");
+									Log.d("Error loop ", "There was an Error");
 									e.printStackTrace();
 								}
 							}
+							con.disconnect();*/
 						}catch (Exception e) {
 							warn(e, "Could not open the specified file");
 							toast("Could not open the specified file");
