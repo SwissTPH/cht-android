@@ -44,9 +44,11 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -108,8 +110,17 @@ public class MedicAndroidJavascript {
 	}
 	@JavascriptInterface
 	public void saveDocs(String docs) throws IOException{
+		try {
+			JSONObject docs_obj = new JSONObject(docs);
+			JSONArray docs_list = docs_obj.getJSONArray("rows");
+			Log.d("Rows Object: ", docs_list.toString());
+
+		} catch (JSONException e) {
+			Log.d("Error creating json", "json file");
+			e.printStackTrace();
+		}
 		File file = null;
-		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");;
+		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");
 		if (android.os.Build.VERSION.SDK_INT >= 8) {
 			file = new File(getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS)+"/cht_data/", "allDocs_"+ LocalDateTime.now()
 				.truncatedTo(ChronoUnit.SECONDS)
@@ -365,7 +376,24 @@ public class MedicAndroidJavascript {
 			return jsonError("Problem fetching device info: ", ex);
 		}
 	}
-
+	public JSONObject parseJSON(JSONObject json)
+	{
+		Iterator<String> iter = json.keys();
+		while (iter.hasNext())
+		{
+			String key = iter.next();
+			if (key.equals("-xmlns:i") ||
+				key.equals("-i:nil") ||
+				key.equals("-xmlns:d4p1") ||
+				key.equals("-i:type") ||
+				key.equals("#text")) // I want to delete items with those ID strings
+			{
+				json.remove(key);
+			}
+			//Object value = json.get(key);
+		}
+		return json;
+	}
 //> PRIVATE HELPER METHODS
 	private void datePicker(String targetElement, Calendar initialDate) {
 		// Remove single-quotes from the `targetElement` CSS selecter, as

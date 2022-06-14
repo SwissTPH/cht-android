@@ -21,6 +21,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 
 import android.os.StrictMode;
@@ -113,7 +114,7 @@ public class EmbeddedBrowserActivity extends Activity {
 
 				container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
 				String script = "window.PouchDB('medic-user-"+ userName+"')" +
-					".allDocs({include_docs: true, attachments: true, binary:true})" +
+					".allDocs({include_docs: true, attachments: true, binary: true})" +
 					".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
 				container.evaluateJavascript(script, null);
 			}
@@ -263,27 +264,34 @@ public class EmbeddedBrowserActivity extends Activity {
 								total.append(line);
 								//evaluateJavascript("console.log('reading line"+line+"')");
 							}
-							if (android.os.Build.VERSION.SDK_INT > 9) {
+							if (Build.VERSION.SDK_INT > 9) {
 								StrictMode.ThreadPolicy policy =
 									new StrictMode.ThreadPolicy.Builder().permitAll().build();
 								StrictMode.setThreadPolicy(policy);
 							}
+
 							//content =total.toString().replaceAll("\"total_rows\".*\"rows\":","\"docs\":");
 							content =total.toString().replaceAll("\"total_rows\".*\"rows\":","\"docs\":");
+
+							//content = "{\"docs\":[{\"id\":\"185d1ba0-da75-4adf-b43f-c2148b50981c\",\"key\":\"180d1ba0-da75-4adf-b43f-c2148b50981c\",\"value\":{\"rev\":\"2-95f842364467f65af90e735a5a21c6d1\"},\"doc\":{\"parent\":{\"_id\":\"e43d3be2-49df-5462-ae9f-bc013a6cfce1\",\"parent\":{\"_id\":\"98d63f7d-768e-581d-9cae-fcf3cb7cda22\",\"parent\":{\"_id\":\"1f5f0769-ab9f-5b3f-b63b-25ea123346ac\"}}},\"type\":\"person\",\"name\":\"offline_person_39\",\"short_name\":\"\",\"date_of_birth\":\"2020-06-11\",\"date_of_birth_method\":\"\",\"ephemeral_dob\":{\"dob_calendar\":\"2020-06-11\",\"dob_method\":\"\",\"ephemeral_months\":\"6\",\"ephemeral_years\":\"2022\",\"dob_approx\":\"2022-06-11\",\"dob_raw\":\"2020-06-11\",\"dob_iso\":\"2020-06-11\"},\"sex\":\"male\",\"phone\":\"\",\"phone_alternate\":\"\",\"role\":\"patient\",\"external_id\":\"\",\"notes\":\"\",\"meta\":{\"created_by\":\"hp1_dagahaley_cons\",\"created_by_person_uuid\":\"576896af-02bc-5a37-9d14-1b674fdb0b2e\",\"created_by_place_uuid\":\"e43d3be2-49df-5462-ae9f-bc013a6cfce1\"},\"reported_date\":1654973074761,\"patient_id\":\"64350\",\"_id\":\"180d1ba0-da75-4adf-b43f-c2148b50981c\",\"_rev\":\"2-95f842364467f65af90e735a5a21c6d1\"}}]}";
+							content = content.replaceAll(",\"_rev\":.*?\\}","}");
 							//content = content.replaceAll("\"id\"", "\"_id\"");
-							//content = content.replaceAll("\"rev\"", "\"_rev\"");
-							//content = content.replaceAll("\"deleted\"", "\"_deleted\"");
+							content = content.replaceAll("\"value\":.*?,(\"doc\")", "$1");
+							content = content.replaceAll("\"doc\":\\{(.*?)\"\\}","$1\"");
+
+							//content = content.replaceAll("\"id\":.*\\},$", "");
+							//content = content.replaceAll("\"deleted\"""\"_deleted\"");
 							//content = content.replaceAll("\"attachments\"", "\"_attachments\"");
 							//content = content.replaceAll("\"doc\":\\{(\".*)\\}", "$1");
 
 							//content = content.substring(0, content.length() - 1);
 							//content = content + ",\"new_edits\": false}";
 							Log.d("Content of the file ", content);
-							Log.d("Tail content file", content.substring(content.length() - 30));
+							Log.d("Tail content file", content.substring(content.length() - 150));
 // Post downloaded data to the REST API / Main server
 							//maybe use all_docs but iterate through the docs OR use jAVASCRIPT with the db
 							Log.d("APP uRL is ", appUrl);
-							/*URL url = new URL(appUrl+"/medic/_bulk_docs?include_docs=true&attachments=true");
+							URL url = new URL(appUrl+"/medic/_bulk_docs?include_docs=true");
 							Log.d("URL using", url.toString());
 							String userPassword = "medic" + ":" + "password";
 							String encoding = Base64.encodeToString(userPassword.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
@@ -303,26 +311,30 @@ public class EmbeddedBrowserActivity extends Activity {
 								Log.d("input done ", "yes");
 							}catch (Exception e){
 								e.printStackTrace();
-							}*/
+							}
 							//String content_js =
-							String script = "var localDB=new PouchDB('temp_db');" +
-								"localDB.bulkDocs({docs:"+content+", include_docs:true})" +
-								".then(result => console.log(JSON.stringify(result)));"+
+							/*String script = "var localDB=new PouchDB('temp_db');" +
+								"localDB.bulkDocs("+content+", [include_docs=true, attachments=true,new_edits=false]).then(function(err, response) {" +
+								"if (err) {" +
+								"console.log(JSON.stringify(err));} else {" +
+								"console.log('Post request: '+JSON.stringify(response));" +
 								"var remoteDB = new PouchDB('"+appUrl+"/medic"+"');"+
-								"localDB.replicate.to(remoteDB).on('complete', function (result){" +
+								"localDB.replicate.to(remoteDB, {include_docs: true,new_edits:false}).on('complete', function (result){" +
 								"console.log(JSON.stringify(result));"+
 								"medicmobile_android.toastResult('Replication completed');}).on('error', function(err){" +
 								"medicmobile_android.toastResult('Error with replication');"+
-								"console.log(JSON.stringify(err));});"+
+								"console.log(JSON.stringify(err));});}}).catch(e => {" +
+								"console.log(JSON.stringify(e));" +
+								"});" +
 								"var localDB2 = window.PouchDB('medic-user-medic');"+
-								"localDB.replicate.to(localDB2).on('complete', function (result){" +
+								"localDB.replicate.to(localDB2,{include_docs: true,new_edits:false}).on('complete', function (result){" +
 								"console.log(JSON.stringify(result));"+
 								"medicmobile_android.toastResult('Replication completed');}).on('error', function(err){" +
 								"medicmobile_android.toastResult('Error with replication');"+
-								"console.log(JSON.stringify(err));});";
-							Log.d("script to exe", script);
-							container.evaluateJavascript(script, null);
-							/*Log.d("resp", con.getResponseMessage()+" ; "+con.getResponseCode());
+								"console.log(JSON.stringify(err));});";*/
+							//Log.d("script to exe", script);
+							//container.evaluateJavascript(script, null);
+							Log.d("resp", con.getResponseMessage()+" ; "+con.getResponseCode());
 							String responseMessage = con.getResponseMessage();
 							Integer responseCode = con.getResponseCode();
 							if (con.getResponseCode() == 200 || con.getResponseCode() == 201) {
@@ -335,7 +347,7 @@ public class EmbeddedBrowserActivity extends Activity {
 									}
 									con.disconnect();
 									Log.d("Response", response.toString());
-									JSONObject array = new JSONObject(response.toString());
+									JSONArray array = new JSONArray(response.toString());
 									Toast.makeText(getApplicationContext(), responseMessage, Toast.LENGTH_LONG).show();
 								} catch (Exception e) {
 									Log.d("Input message loop", "There was no Input stream");
@@ -357,7 +369,7 @@ public class EmbeddedBrowserActivity extends Activity {
 									e.printStackTrace();
 								}
 							}
-							con.disconnect();*/
+							con.disconnect();
 						}catch (Exception e) {
 							warn(e, "Could not open the specified file");
 							toast("Could not open the specified file");
