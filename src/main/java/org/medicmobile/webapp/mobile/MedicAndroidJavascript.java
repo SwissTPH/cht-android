@@ -110,14 +110,30 @@ public class MedicAndroidJavascript {
 	}
 	@JavascriptInterface
 	public void saveDocs(String docs) throws IOException{
+		JSONArray newDocs = new JSONArray();
 		try {
 			JSONObject docs_obj = new JSONObject(docs);
 			JSONArray docs_list = docs_obj.getJSONArray("rows");
 			Log.d("Rows Object: ", docs_list.toString());
-
+			for (int i = 0; i < docs_list.length(); i++) {
+				docs_list.getJSONObject(i).remove("key");
+				docs_list.getJSONObject(i).getJSONObject("doc").remove("_rev");
+				Log.d("Iteration", i+"and " + docs_list.getJSONObject(i).toString());
+				//Log.d("Json type", docs_list.getJSONObject(i).getJSONObject("doc").get("type").toString());
+				Log.d("id", docs_list.getJSONObject(i).getString("id"));
+				if (docs_list.getJSONObject(i).getString("id").startsWith("form")|| docs_list.getJSONObject(i).getString("id").equals("settings") || docs_list.getJSONObject(i).getString("id").startsWith("service") ||docs_list.getJSONObject(i).getString("id").equals("resources") || docs_list.getJSONObject(i).getString("id").equals("branding") || docs_list.getJSONObject(i).getString("id").startsWith("_design") || docs_list.getJSONObject(i).getJSONObject("doc").get("type").toString().equals("translations") || docs_list.getJSONObject(i).getJSONObject("doc").get("type").toString().equals("target")) {
+					Log.d("Translations: ", "found");
+				}else{
+					//Log.d("Creating New File", docs_list.getJSONObject(i).getJSONObject("doc").toString());
+					newDocs.put(docs_list.getJSONObject(i));
+				}
+			}
 		} catch (JSONException e) {
-			Log.d("Error creating json", "json file");
+			Log.d("Error json type", "json file");
 			e.printStackTrace();
+		}
+		if (newDocs != null && newDocs.length() > 0 ){
+			docs= "{\"docs\":"+newDocs.toString()+"}";
 		}
 		File file = null;
 		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");
