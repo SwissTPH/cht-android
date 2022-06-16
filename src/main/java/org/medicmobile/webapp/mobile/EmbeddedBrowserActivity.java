@@ -314,7 +314,7 @@ public class EmbeddedBrowserActivity extends Activity {
 							}*/
 							//String content_js =
 							String script = "window.PouchDB('medic-user-"+getUserData().get(0)+"')" +
-								".bulkDocs("+content+").then(result =>" +
+								".bulkDocs("+content+", {include_docs: true}).then(result =>" +
 								"console.log('LocalDB bulk request: '+JSON.stringify(result)));";
 							Log.d("script to exe", script);
 							container.evaluateJavascript(script, null);
