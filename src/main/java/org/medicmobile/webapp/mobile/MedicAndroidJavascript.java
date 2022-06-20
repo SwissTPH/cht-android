@@ -109,23 +109,48 @@ public class MedicAndroidJavascript {
 		Toast.makeText(parent, result, Toast.LENGTH_LONG).show();
 	}
 	@JavascriptInterface
-	public void saveDocs(String docs) throws IOException{
+	public void saveDocs(String docs, String username) throws IOException{
 		JSONArray newDocs = new JSONArray();
 		try {
 			Log.d("documents", docs);
+			docs = docs.replaceAll("\\\\/", "/");
 			JSONObject docs_obj = new JSONObject(docs);
 			JSONArray docs_list = docs_obj.getJSONArray("rows");
 			Log.d("Rows Object: ", docs_list.toString());
 			for (int i = 0; i < docs_list.length(); i++) {
 				docs_list.getJSONObject(i).remove("key");
 				docs_list.getJSONObject(i).remove("value");
+				//docs_list.getJSONObject(i).remove("_attachments");
 				docs_list.getJSONObject(i).getJSONObject("doc").remove("_rev");
-				Log.d("Iteration", i+"and " + docs_list.getJSONObject(i).toString());
-				//Log.d("Json type", docs_list.getJSONObject(i).getJSONObject("doc").get("type").toString());
-				//Log.d("id", docs_list.getJSONObject(i).getString("id"));
+				Log.d("Iteration", i+" and " + docs_list.getJSONObject(i).toString());
+				if(docs_list.getJSONObject(i).has("_rev")){
+					docs_list.getJSONObject(i).remove("_rev");
+				}
+				if(docs_list.getJSONObject(i).getJSONObject("doc").has("doc")){
+					docs_list.remove(i);
+					/*Iterator<String> keys = docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("doc").keys();
+					while(keys.hasNext()) {
+						String key = keys.next();
+						docs_list.getJSONObject(i).getJSONObject("doc").put(key,docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("doc").get(key));
+					}
+					docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("doc").remove("doc");*/
+				}
 				if (docs_list.getJSONObject(i).getString("id").startsWith("form")|| docs_list.getJSONObject(i).getString("id").equals("settings") || docs_list.getJSONObject(i).getString("id").startsWith("service") ||docs_list.getJSONObject(i).getString("id").equals("resources") || docs_list.getJSONObject(i).getString("id").equals("branding") || docs_list.getJSONObject(i).getString("id").startsWith("_design") || docs_list.getJSONObject(i).getJSONObject("doc").get("type").toString().equals("translations") || docs_list.getJSONObject(i).getJSONObject("doc").get("type").toString().equals("target")) {
 					Log.d("Translations: ", "found");
 				}else{
+					if(docs_list.getJSONObject(i).getJSONObject("doc").has("_attachments")){
+						String contentType = docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").getString("content_type");
+						String digest = docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").getString("digest");
+						docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").remove("content_type");
+						docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").remove("digest");
+						contentType = "application/xml";
+						digest= digest.replace("\\\\/","/");
+						docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").put("content_type", contentType);
+						docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").put("revpos", 1);
+						docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").put("digest", digest);
+
+						Log.d("application / content", docs_list.getJSONObject(i).getJSONObject("doc").getJSONObject("_attachments").getJSONObject("content").getString("content_type").toString());
+					}
 					Iterator<String> keys = docs_list.getJSONObject(i).getJSONObject("doc").keys();
 					while(keys.hasNext()) {
 						String key = keys.next();
@@ -133,7 +158,10 @@ public class MedicAndroidJavascript {
 					}
 					docs_list.getJSONObject(i).remove("doc");
 
-					if (docs_list.getJSONObject(i).has("id")){docs_list.getJSONObject(i).remove("id");}
+					if (docs_list.getJSONObject(i).has("id")){
+						//docs_list.getJSONObject(i).put("_id",docs_list.getJSONObject(i).get("id"));
+						docs_list.getJSONObject(i).remove("id");
+					}
 					//Log.d("Creating New File", docs_list.getJSONObject(i).getJSONObject("doc").toString());
 					newDocs.put(docs_list.getJSONObject(i));
 				}
@@ -149,14 +177,14 @@ public class MedicAndroidJavascript {
 		File file = null;
 		DateFormat df = new SimpleDateFormat("yyyyMMddhhmmss");
 		if (android.os.Build.VERSION.SDK_INT >= 8) {
-			file = new File(getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS)+"/cht_data/", "allDocs_"+ LocalDateTime.now()
+			file = new File(getExternalStoragePublicDirectory(DIRECTORY_DOCUMENTS)+"/cht_data/", username+"_"+ LocalDateTime.now()
 				.truncatedTo(ChronoUnit.SECONDS)
 				.toString()
 				.replace("-","")
 				.replace(":","")+ ".txt");
 		}
 		else {
-			file = new File(getExternalStorageDirectory()+"/cht_data/", "allDocs_"+LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
+			file = new File(getExternalStorageDirectory()+"/cht_data/", username+"_"+LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS)
 				.toString()
 				.replace("-","")
 				.replace(":","")+ ".txt");

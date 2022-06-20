@@ -115,7 +115,7 @@ public class EmbeddedBrowserActivity extends Activity {
 				container.evaluateJavascript("console.log('"+ "username:"+ userName + "')", null);
 				String script = "window.PouchDB('medic-user-"+ userName+"')" +
 					".allDocs({include_docs: true, attachments: true})" +
-					".then(result => medicmobile_android.saveDocs(JSON.stringify(result)));";
+					".then(result => medicmobile_android.saveDocs(JSON.stringify(result),'"+userName+"'));";
 				container.evaluateJavascript(script, null);
 			}
 		});
@@ -290,8 +290,8 @@ public class EmbeddedBrowserActivity extends Activity {
 							Log.d("Tail content file", content.substring(content.length() - 150));
 // Post downloaded data to the REST API / Main server
 							//maybe use all_docs but iterate through the docs OR use jAVASCRIPT with the db
-							Log.d("APP uRL is ", appUrl);
-							/*URL url = new URL(appUrl+"/medic/_bulk_docs");
+							/*Log.d("APP uRL is ", appUrl);
+							URL url = new URL(appUrl+"/medic/_bulk_docs");
 							Log.d("URL using", url.toString());
 							String userPassword = "medic" + ":" + "password";
 							String encoding = Base64.encodeToString(userPassword.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
@@ -302,8 +302,8 @@ public class EmbeddedBrowserActivity extends Activity {
 							con.setRequestProperty("Accept", "application/json");
 							con.setDoOutput(true);
 							con.setDoInput(true);
-							con.connect();*/
-							/*byte[] input = content.getBytes(StandardCharsets.UTF_8);
+							con.connect();
+							byte[] input = content.getBytes(StandardCharsets.UTF_8);
 							try(OutputStream os = con.getOutputStream()) {
 								Log.d("input is currently ", content);
 								os.write(input, 0, input.length);
@@ -313,11 +313,32 @@ public class EmbeddedBrowserActivity extends Activity {
 								e.printStackTrace();
 							}*/
 							//String content_js =
-							String script = "window.PouchDB('medic-user-"+getUserData().get(0)+"')" +
-								".bulkDocs("+content+", {include_docs: true}).then(result =>" +
-								"console.log('LocalDB bulk request: '+JSON.stringify(result)));";
-							Log.d("script to exe", script);
+							String script = "new PouchDB('temp')" +
+								".bulkDocs("+content+").then(result =>" +
+								"medicmobile_android.toastResult('Uploaded Successfully')).catch(err =>" +
+								"medicmobile_android.toastResult(JSON.stringify(err)));";
+							//Log.d("script to exe", script);
 							container.evaluateJavascript(script, null);
+							String script_sync = "window.PouchDB('temp81')" +
+								".replicate.to('"+appUrl+"/medic').then(result =>" +
+								"medicmobile_android.toastResult('Uploaded Successfully')).catch(err =>" +
+								"medicmobile_android.toastResult(JSON.stringify(err)));";
+							container.evaluateJavascript(script_sync, null);
+
+							/*String script_medic = "window.PouchDB('medic-user-"+getUserData().get(0)+"')" +
+									".bulkDocs("+content+", {include_docs:true, attachments:true}).then(result => {" +
+								"console.log(JSON.stringify(result));"+
+								" medicmobile_android.toastResult('Uploaded Successfully');}).catch(err => " +
+								"medicmobile_android.toastResult('Error: ' + JSON.stringify(err)));";
+							Log.d("script to exe", script_medic);
+							container.evaluateJavascript(script_medic, null);
+							String script = "window.PouchDB('medic-user-medic')" +
+								".bulkDocs("+content+", {include_docs:true, attachments:true}).then(result => {" +
+								"console.log(JSON.stringify(result));"+
+								" medicmobile_android.toastResult('Uploaded Successfully');}).catch(err => " +
+								"medicmobile_android.toastResult('Error: ' + JSON.stringify(err)));";
+							Log.d("script to exe", script);
+							container.evaluateJavascript(script, null);*/
 							/*Log.d("resp", con.getResponseMessage()+" ; "+con.getResponseCode());
 							String responseMessage = con.getResponseMessage();
 							Integer responseCode = con.getResponseCode();
@@ -352,8 +373,8 @@ public class EmbeddedBrowserActivity extends Activity {
 									Log.d("Error loop ", "There was an Error");
 									e.printStackTrace();
 								}
-							}
-							con.disconnect();*/
+							}*/
+							//con.disconnect();
 						}catch (Exception e) {
 							warn(e, "Could not open the specified file");
 							toast("Could not open the specified file");
