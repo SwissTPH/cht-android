@@ -313,13 +313,17 @@ public class EmbeddedBrowserActivity extends Activity {
 								e.printStackTrace();
 							}*/
 							//String content_js =
+							/*String script = "window.PouchDB('medic-user-"+getUserData().get(0)+"')" +
+								".bulkDocs("+content+").then(result =>" +
+								"medicmobile_android.toastResult('Uploaded Successfully')).catch(err =>" +
+								"medicmobile_android.toastResult(JSON.stringify(err)));";*/
 							String script = "new PouchDB('temp')" +
 								".bulkDocs("+content+").then(result =>" +
 								"medicmobile_android.toastResult('Uploaded Successfully')).catch(err =>" +
 								"medicmobile_android.toastResult(JSON.stringify(err)));";
 							//Log.d("script to exe", script);
 							container.evaluateJavascript(script, null);
-							String script_sync = "window.PouchDB('temp81')" +
+							String script_sync = "window.PouchDB('temp')" +
 								".replicate.to('"+appUrl+"/medic').then(result =>" +
 								"medicmobile_android.toastResult('Uploaded Successfully')).catch(err =>" +
 								"medicmobile_android.toastResult(JSON.stringify(err)));";
