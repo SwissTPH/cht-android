@@ -57,6 +57,11 @@ public class SettingsStoreTest {
 	}
 
 	@Test
+	public void isRootUrl_withAppUrlEndingInSlash_returnsTrue() {
+		assertTrue(settingsStore.isRootUrl(APP_URL + "/"));
+	}
+
+	@Test
 	public void isRootUrl_withOtherUrl_returnsFalse() {
 		assertFalse(settingsStore.isRootUrl("https://project.health-ministry.org"));
 	}
@@ -78,20 +83,6 @@ public class SettingsStoreTest {
 		when(sharedPreferences.getString("a_setting", null)).thenReturn(null);
 
 		assertNull(settingsStore.get("a_setting"));
-	}
-
-	@Test
-	public void hasUserDeniedGeolocation_withPrefSet_returnsValue() {
-		when(sharedPreferences.getBoolean("denied-geolocation", false)).thenReturn(true);
-
-		assertTrue(settingsStore.hasUserDeniedGeolocation());
-	}
-
-	@Test
-	public void hasUserDeniedGeolocation_withNoPrefSet_returnsFalse() {
-		when(sharedPreferences.getBoolean("denied-geolocation", false)).thenReturn(false);
-
-		assertFalse(settingsStore.hasUserDeniedGeolocation());
 	}
 
 	@Test

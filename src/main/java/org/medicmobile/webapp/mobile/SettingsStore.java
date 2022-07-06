@@ -27,7 +27,11 @@ public abstract class SettingsStore {
 	}
 
 	public boolean isRootUrl(String url) {
-		return getAppUrl().equals(url);
+		if (url == null) {
+			return false;
+		}
+
+		return getAppUrl().equals(AppUrlVerifier.clean(url));
 	}
 
 	public abstract boolean hasWebappSettings();
@@ -50,26 +54,6 @@ public abstract class SettingsStore {
 
 	String get(String key) {
 		return prefs.getString(key, null);
-	}
-
-	/**
-	 * Returns true if the user has denied to provide its geolocation data.
-	 * The rejection is taken from the first view with the "prominent" disclosure
-	 * about the location data, not from the native dialog displayed by Android.
-	 */
-	boolean hasUserDeniedGeolocation() {
-		return prefs.getBoolean("denied-geolocation", false);
-	}
-
-	/**
-	 * @see #hasUserDeniedGeolocation()
-	 */
-	void setUserDeniedGeolocation() throws SettingsException {
-		SharedPreferences.Editor ed = prefs.edit();
-		ed.putBoolean("denied-geolocation", true);
-		if (!ed.commit()) {
-			throw new SettingsException("Failed to save 'denied-geolocation' to SharedPreferences.");
-		}
 	}
 
 	/**

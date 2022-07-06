@@ -96,7 +96,7 @@ public class EmbeddedBrowserActivity extends Activity {
 		this.chtExternalAppHandler = new ChtExternalAppHandler(this);
 
 		try {
-			this.smsSender = new SmsSender(this);
+			this.smsSender = SmsSender.createInstance(this);
 		} catch(Exception ex) {
 			error(ex, "Failed to create SmsSender.");
 		}
@@ -138,7 +138,7 @@ public class EmbeddedBrowserActivity extends Activity {
 		if (settings.allowsConfiguration() && appUrl != null && appUrl.contains("app.medicmobile.org")) {
 			View webviewContainer = findViewById(R.id.lytWebView);
 			webviewContainer.setPadding(10, 10, 10, 10);
-			webviewContainer.setBackgroundColor(R.drawable.warning_background);
+			webviewContainer.setBackgroundResource(R.drawable.warning_background);
 		}
 
 		// Add a noticeable border to easily identify a training app
@@ -407,7 +407,10 @@ public class EmbeddedBrowserActivity extends Activity {
 					processStoragePermissionResult(resultCode, intent);
 					return;
 				case ACCESS_LOCATION_PERMISSION:
-					processLocationPermissionResult(resultCode);
+					locationRequestResolved();
+					return;
+				case ACCESS_SEND_SMS_PERMISSION:
+					this.smsSender.resumeProcess(resultCode);
 					return;
 				default:
 					trace(this, "onActivityResult() :: no handling for requestCode=%s", requestCode.name());
@@ -466,17 +469,11 @@ public class EmbeddedBrowserActivity extends Activity {
 		boolean hasCoarseLocation = ContextCompat.checkSelfPermission(this, ACCESS_COARSE_LOCATION) == PERMISSION_GRANTED;
 
 		if (hasFineLocation && hasCoarseLocation) {
-			trace(this, "getLocationPermissions() :: already granted");
+			trace(this, "getLocationPermissions() :: Fine and Coarse location already granted");
 			return true;
 		}
 
-		if (settings.hasUserDeniedGeolocation()) {
-			trace(this, "getLocationPermissions() :: user has previously denied to share location");
-			locationRequestResolved();
-			return false;
-		}
-
-		trace(this, "getLocationPermissions() :: location not granted before, requesting access...");
+		trace(this, "getLocationPermissions() :: Fine or Coarse location not granted before, requesting access...");
 		startActivityForResult(
 			new Intent(this, RequestLocationPermissionActivity.class),
 			RequestCode.ACCESS_LOCATION_PERMISSION.getCode()
@@ -536,7 +533,6 @@ public class EmbeddedBrowserActivity extends Activity {
 
 		locationRequestResolved();
 	}
-
 	private void processChtExternalAppResult(int resultCode, Intent intentData) {
 		String script = this.chtExternalAppHandler.processResult(resultCode, intentData);
 		trace(this, "ChtExternalAppHandler :: Executing JavaScript: %s", script);
@@ -656,10 +652,11 @@ public class EmbeddedBrowserActivity extends Activity {
 	public enum RequestCode {
 		ACCESS_LOCATION_PERMISSION(100),
 		ACCESS_STORAGE_PERMISSION(101),
-		CHT_EXTERNAL_APP_ACTIVITY(102),
-		GRAB_MRDT_PHOTO_ACTIVITY(103),
-		FILE_PICKER_ACTIVITY(104),
-		PICK_FILE_REQUEST(105);
+		ACCESS_SEND_SMS_PERMISSION(102),
+		CHT_EXTERNAL_APP_ACTIVITY(103),
+		GRAB_MRDT_PHOTO_ACTIVITY(104),
+		FILE_PICKER_ACTIVITY(105);
+
 		private final int requestCode;
 
 		RequestCode(int requestCode) {
